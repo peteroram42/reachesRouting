@@ -1,0 +1,84 @@
+Routing Logic
+
+Research Data: 
+Most US consumers say they typically travel 20 minutes or less to make everyday purchases, according to recent research from Access Development.
+- http://www.marketingprofs.com/charts/2016/31051/how-far-consumers-travel-to-make-everyday-purchases
+
+HOW WE TRAVEL
+Nine out of 10 long-distance trips are by personal vehicle
+Personal vehicles are used for almost all trips less than 300 roundtrip miles
+HOW FAR WE TRAVEL
+Americans total 1.3 trillion person-miles of long distance travel a year on about 2.6 billion long distance trips.
+The median distances on these trips are:
+Personal vehicle - 194 miles
+- https://www.rita.dot.gov/bts/sites/rita.dot.gov.bts/files/subject_areas/national_household_travel_survey/long_distance.html
+
+Example Distances: 
+HGB to Tujunga is 20 miles (30 min)
+Times Square to Hicksville, Long Island (Long island Org) is 27 miles (1 hour!)
+Cambridge, CAN to Toronto, CAN is 60 miles (1.5 hours)
+LA to San Diego is 124 miles (2 hours)
+LA to San Luis Obispo is 200 miles (3.5 hours)
+Copenhagen to Hamburg is 207 miles (4.5 hours) - :50 flight $193
+New York City to Washington DC is 227 miles (4 hours) - 1 hr flight $127
+LA to Las Vegas is 270 miles (4 hours) - 1 hr flight $94
+LA to San Jose is 340 miles (5 hours) - 1:20 hr flight $91
+
+
+
+Basic sequence of how a reach is routed: 
+0.  Assuming we can get a lat/long pair per https://jsfiddle.net/hed2ahah/3/ using browser geolocation and https://caniuse.com/#feat=geolocation - Global: 94.92%
+    have function in netUtils to get IP if no geolocation support in browser. Will write IP->Lat/Long in there as well so can use that if needed/wanted so package goes all the way from http request. 
+1.  We accept a lat/long pair. If we don't have that then fail. Feature request to use address to get lat/long, not yet implemented.
+    As this routing may be used for other things in the future, which campaign it's being used for is also required. "scn" is currently
+    the only functioning campaign as that's the only location data set available. 
+2.  Load Orgs.xml that contains all orgs and missions as well as ideal/non-ideal orgs, established/other msns, etc. and their lat/long
+    Note: In the future, that or a separate xml could be extended to include a type "landmarks", etc. 
+3.  Take a snapshot of e/g w/in +/- 1 lat/long, that's 80-90 miles around the location.
+4.  Sort through that snapshot for what Ideal Orgs, Orgs and Missions are in range. 
+5.  Complete the data set by finding closest AO, closest ideal org (regardless of range) and closest org (regardless of range)
+6.  Resolve the Primary (where we're going to send them - or at least the first option if they're given a list) based on below default routing logic.
+7.  If we don't already have state (which could also be province or equivalent), country and postcode, get it from the Google Maps API.
+8.  Based on state, country and postcode, check for exceptions to the routing.
+9.  If exceptions are found, override the Primary.
+10. Return the routing data as a package.
+
+
+
+Default Routing Logic:
+Nothing in range
+	Go to closest Ideal Org regardless of distance
+	unless closest Org/Msn is < 120 miles and Ideal is > 250
+
+Only 1 thing in range
+	Go to it unless it's > 60 and closest Ideal < 100
+
+Multiple things in range
+	If closest Ideal < 30, go to it
+	else if closest org or established msn < 30 go to it
+	else if closest ideal < 60, go to it
+	else if closest org or established msn < 60 go to it
+	else if ideal in range go to it
+	else if org in range go to it
+	else if msn in range go to it
+	else - if all else fails, go to the closest ideal org
+
+
+
+Categories of exception:
+Country rules: 
+	Country goes to specific org [no other eval]
+	Country does not leave itself [eval special { where country = country}]
+	Country does not go to country [eval special { where country not in (country)}]
+	Country does not go to org [eval special { where org not in (org)}]
+	Country goes to specific org if no default [eval default]
+
+	State/Province rules: 
+		State/Provide goes to specific org [no other eval]
+		Within x distance of specific org goes to specific org [eval special first]
+
+	Post Code rules:
+		Full Post Code is (take preference to post code prefix) [no other eval]
+		Post Code starts with x digits that are [no other eval]
+		Post Code is in range high:low [no other eval]
+		
